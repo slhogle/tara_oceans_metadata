@@ -45,7 +45,7 @@ Sunagawa, S., L. P. Coelho, S. Chaffron, and others. 2015. Structure and functio
 Guidi, Lionel; Picheral, Marc; Pesant, Stephane; Tara Oceans Consortium, Coordinators; Tara Oceans Expedition, Participants (2017): Environmental context of all samples from the Tara Oceans Expedition (2009-2013), about sensor data in the targeted environmental feature. PANGAEA, https://doi.org/10.1594/PANGAEA.875576
 
 ### Code
-If any of this code is helpful for you please also consider citing this repository. [![DOI](https://zenodo.org/badge/243473977.svg)](https://zenodo.org/badge/latestdoi/243473977)
+If any of this code is helpful for you please also consider citing this repository. [![DOI](https://zenodo.org/badge/261384041.svg)](https://zenodo.org/badge/latestdoi/261384041)
 
 ## WORKFLOW
 [Rendered markdown available here](bin/formatting_pipeline.md)
