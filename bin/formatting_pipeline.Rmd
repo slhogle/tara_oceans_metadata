@@ -1,0 +1,384 @@
+---
+title: "Tara Oceans Formatting, imputing, and finalizing data"
+output:   
+  github_document:
+    toc: yes
+    toc_depth: 2
+    fig_width: 7
+    fig_height: 5
+    dev: png
+    keep_html: yes
+    html_preview: yes
+---
+
+```{r message=FALSE, warning=FALSE}
+set.seed(472)
+
+library(here)
+library(tidyverse)
+library(readxl)
+library(janitor)
+```
+
+# INTRO
+We want to combine environmental, biogeographic, biogeochemical, and hydrographic data into a single dataset that can be loaded with ease. The final product will be a single R object that we can load and use right away with statistical models and visualization approaches or other downstream processing.
+
+# DOWNLOAD AND FORMAT DARWIN DATA
+Here we use the cmap4r package to get the Darwin model nutrient climatology. We will use this modeled data since it is highly complete and represents more of an "time-averaged" picture rather than the point source observations we have from the GEOTRACES samples.
+
+We will download modeled:
+- Synechococcus (mmol C/L) = prokaryote_c01_darwin_clim
+- Prochlorococcus (mmol C/L) = prokaryote_c02_darwin_clim
+- Dissolved Nitrate (mmol N/L) = NO3_darwin_clim
+- Dissolved Phosphate (mmol P/L) = PO4_darwin_clim
+- Dissolved Organic Phosphate (mmol P/L) = DOP_darwin_clim
+- Dissolved Total Fe (mmol Fe/L) = FeT_darwin_clim
+
+## Tara and Simons generic metadata
+Read this to reduce file size for saving
+```{r eval=FALSE, include=TRUE}
+mg <- read_tsv(here::here("data", "tara-geotraces-coord-depth.tsv")) 
+```
+
+## Synechococcus
+```{r eval=FALSE, include=TRUE}
+darwinSyn.clim <- get_spacetime(tableName = 'tblDarwin_Plankton_Climatology',
+              varName = 'prokaryote_c01_darwin_clim',
+              dt1='2008-01-01',
+              dt2='2008-12-31',
+              lat1=-63,
+              lat2=50,
+              lon1=-180,
+              lon2=180,
+              depth1=0,
+              depth2=500)
+
+darwinSyn.clim %<>% group_by(lat, lon, depth) %>%
+  summarize(value=mean(prokaryote_c01_darwin_clim, na.rm=T)) %>%
+  ungroup() %>%
+  mutate(variable="prokaryote_c01_darwin_clim")
+
+darwinSyn.clim.joined <- geo_left_join(select(mg, sampleID, lat, lon, depth), darwinSyn.clim, 
+                        by = c("lat","lon"),
+                        distance_col="geojoin.dist.km",
+                        max_dist = 65)
+
+darwinSyn.clim.joined.final <- darwinSyn.clim.joined %>%
+  mutate(depth.diff=abs(depth.x-depth.y)) %>%
+  group_by(sampleID) %>%
+  filter(geojoin.dist.km==min(geojoin.dist.km)) %>%
+  filter(depth.diff==min(depth.diff)) %>%
+  slice(1) %>%
+  ungroup() 
+
+coord.info <- select(darwinPro.clim.joined.final, sampleID, lat=lat.y, lon=lon.y, depth=depth.y, geojoin.dist.km)
+
+saveRDS(coord.info, here::here("data", "darwin_clim", "darwin.coords.depth"))
+
+saveRDS(select(darwinSyn.clim.joined.final, sampleID, value, variable),
+        here::here("data", "darwin_clim", "darwinSyn.clim"))
+```
+
+## Prochlorococcus
+```{r eval=FALSE, include=TRUE}
+coord.info <- readRDS(here::here("data", "darwin_clim", "darwin.coords.depth"))
+
+darwinPro.clim <- get_spacetime(tableName = 'tblDarwin_Plankton_Climatology',
+              varName = 'prokaryote_c02_darwin_clim',
+              dt1='2008-01-01',
+              dt2='2008-12-31',
+              lat1=-63,
+              lat2=50,
+              lon1=-180,
+              lon2=180,
+              depth1=0,
+              depth2=500)
+
+darwinPro.clim %<>% group_by(lat, lon, depth) %>%
+  summarize(value=mean(prokaryote_c02_darwin_clim, na.rm=T)) %>%
+  ungroup() %>%
+  mutate(variable="prokaryote_c02_darwin_clim")
+
+darwinPro.clim.joined <- left_join(coord.info, darwinPro.clim) %>%
+  select(sampleID, value, variable)
+
+saveRDS(darwinPro.clim.joined, here::here("data", "darwin_clim", "darwinPro.clim"))
+```
+
+## Nitrate
+```{r eval=FALSE, include=TRUE}
+coord.info <- readRDS(here::here("data", "darwin_clim", "darwin.coords.depth"))
+
+darwinNO3.clim <- get_spacetime(tableName = 'tblDarwin_Nutrient_Climatology',
+              varName = 'NO3_darwin_clim',
+              dt1='2008-01-01',
+              dt2='2008-12-31',
+              lat1=-63,
+              lat2=50,
+              lon1=-180,
+              lon2=180,
+              depth1=0,
+              depth2=500)
+
+darwinNO3.clim %<>% group_by(lat, lon, depth) %>%
+  summarize(value=mean(NO3_darwin_clim, na.rm=T)) %>%
+  ungroup() %>%
+  mutate(variable="NO3_darwin_clim")
+
+darwinNO3.clim.joined <- left_join(coord.info, darwinNO3.clim) %>%
+  select(sampleID, value, variable)
+
+saveRDS(darwinNO3.clim.joined, here::here("data", "darwin_clim", "darwinNO3.clim"))
+```
+
+## Phosphate
+```{r eval=FALSE, include=TRUE}
+coord.info <- readRDS(here::here("data", "darwin_clim", "darwin.coords.depth"))
+
+darwinPO4.clim <- get_spacetime(tableName = 'tblDarwin_Nutrient_Climatology',
+              varName = 'PO4_darwin_clim',
+              dt1='2008-01-01',
+              dt2='2008-12-31',
+              lat1=-63,
+              lat2=50,
+              lon1=-180,
+              lon2=180,
+              depth1=0,
+              depth2=500)
+
+darwinPO4.clim %<>% group_by(lat, lon, depth) %>%
+  summarize(value=mean(PO4_darwin_clim, na.rm=T)) %>%
+  ungroup() %>%
+  mutate(variable="PO4_darwin_clim")
+
+darwinPO4.clim.joined <- left_join(coord.info, darwinPO4.clim) %>%
+  select(sampleID, value, variable)
+
+saveRDS(darwinPO4.clim.joined, here::here("data", "darwin_clim", "darwinPO4.clim"))
+```
+
+## Dissolved Organic Phosphorus
+```{r eval=FALSE, include=TRUE}
+coord.info <- readRDS(here::here("data", "darwin_clim", "darwin.coords.depth"))
+
+darwinDOP.clim <- get_spacetime(tableName = 'tblDarwin_Nutrient_Climatology',
+              varName = 'DOP_darwin_clim',
+              dt1='2008-01-01',
+              dt2='2008-12-31',
+              lat1=-63,
+              lat2=50,
+              lon1=-180,
+              lon2=180,
+              depth1=0,
+              depth2=500)
+
+darwinDOP.clim %<>% group_by(lat, lon, depth) %>%
+  summarize(value=mean(DOP_darwin_clim, na.rm=T)) %>%
+  ungroup() %>%
+  mutate(variable="DOP_darwin_clim")
+
+darwinDOP.clim.joined <- left_join(coord.info, darwinDOP.clim) %>%
+  select(sampleID, value, variable)
+
+saveRDS(darwinDOP.clim.joined, here::here("data", "darwin_clim", "darwinDOP.clim"))
+```
+
+## Dissolved Total Iron
+```{r eval=FALSE, include=TRUE}
+coord.info <- readRDS(here::here("data", "darwin_clim", "darwin.coords.depth"))
+
+darwinFe.clim <- get_spacetime(tableName = 'tblDarwin_Nutrient_Climatology',
+              varName = 'FeT_darwin_clim',
+              dt1='2008-01-01',
+              dt2='2008-12-31',
+              lat1=-63,
+              lat2=50,
+              lon1=-180,
+              lon2=180,
+              depth1=0,
+              depth2=500)
+
+darwinFe.clim %<>% group_by(lat, lon, depth) %>%
+  summarize(value=mean(FeT_darwin_clim, na.rm=T)) %>%
+  ungroup() %>%
+  mutate(variable="FeT_darwin_clim")
+
+darwinFe.clim.joined <- left_join(coord.info, darwinFe.clim) %>%
+  select(sampleID, value, variable)
+
+saveRDS(darwinFe.clim.joined, here::here("data", "darwin_clim", "darwinFe.clim"))
+```
+
+Read in if not already in environment
+```{r eval=FALSE, include=TRUE}
+darwinSyn.clim <- readRDS(here::here("data", "darwin_clim", "darwinSyn.clim"))
+darwinPro.clim <- readRDS(here::here("data", "darwin_clim", "darwinPro.clim"))
+darwinNO3.clim <- readRDS(here::here("data", "darwin_clim", "darwinNO3.clim"))
+darwinPO4.clim <- readRDS(here::here("data", "darwin_clim", "darwinPO4.clim"))
+darwinDOP.clim <- readRDS(here::here("data", "darwin_clim", "darwinDOP.clim"))
+darwinFe.clim  <- readRDS(here::here("data", "darwin_clim", "darwinFe.clim"))
+```
+
+Bind DARWIN tables and pivot
+```{r eval=FALSE, include=TRUE}
+darwin.bound.wide <- bind_rows(darwinSyn.clim, darwinPro.clim, darwinNO3.clim,
+                          darwinPO4.clim, darwinDOP.clim, darwinFe.clim) %>%
+  pivot_wider(names_from = "variable", values_from = "value")
+```
+
+```{r eval=FALSE, include=TRUE}
+write_tsv(darwin.bound.wide, here::here("data", "darwin2metagenomes.tsv"))
+```
+
+# READ DATA
+metagenome sequence metadata
+```{r message=FALSE, warning=FALSE}
+tara.samp <- read_tsv(here::here("data", "tara_metadata.tsv"))
+```
+
+Environmental data from the PANGAEA dataset. IMPORTANT: the ENV-WATERCOLUMN appears to be summary values derived from the ENV_DEPTH_SENSORS product and maybe remote observations (eg MODIS). The table we use primarly is the DEPTH_SENSORS table. Also there is a lot of missing and incomplete nutrient data in the PANGAEA dataset. We will try to fill in using the supplementary data from Sunugawa 2015 and/or by imputing.
+
+All data was downloaded from here: https://doi.pangaea.de/10.1594/PANGAEA.836321
+```{r message=FALSE, warning=FALSE}
+tara.meta.a <- read_tsv(here::here("data", "pangea-metadata", "TARA_ENV_DEPTH_SENSORS_red.tsv")) %>%
+  janitor::clean_names() %>%
+  janitor::remove_empty(which = "cols") %>%
+  dplyr::rename(pangaea_id=sample_id, tara_station=station,
+         ebi_sample_id=sample_id_ena) %>%
+  mutate(tara_station=ifelse(str_detect(tara_station, "TARA_148"), "TARA_148", tara_station)) %>%
+  left_join(select(tara.samp, sampleID, ebi_sample_id), .) %>% 
+  distinct()
+
+colnames(tara.meta.a)
+```
+
+```{r message=FALSE, warning=FALSE}
+tara.meta.b <- read_tsv(here::here("data", "pangea-metadata", "TARA_SAMPLES_CONTEXT_ENV-WATERCOLUMN_2.tab"), 
+                     skip = 2572) %>%
+  janitor::clean_names() %>%
+  janitor::remove_empty(which = "cols") %>%
+  dplyr::rename(pangaea_id=sample_id_tara_barcode_number_registered_at, tara_station=station_tara_station_number_registered_at,
+         ebi_sample_id=sample_id_ena_sample_accession_number) %>%
+  mutate(tara_station=ifelse(str_detect(tara_station, "TARA_148"), "TARA_148", tara_station)) %>%
+  left_join(select(tara.samp, sampleID, ebi_sample_id), .)
+
+colnames(tara.meta.b)
+```
+
+Companion table from Sunigawa et al 2015 Science. 
+```{r message=FALSE, warning=FALSE}
+taraW8 <- read_excel(here::here("data", "sunigawa_et_al_CompanionTables.xlsx"), sheet = "Table W8") %>%
+  janitor::clean_names() %>%
+  janitor::remove_empty(which = "cols") %>%
+  select(pangaea_id=pangaea_sample_id, 
+         mean_depth_m, mean_temperature_deg_c, mean_salinity_psu, mean_oxygen_umol_kg,
+         po4_umol_l, si_umol_l, mean_depth_max_fluo_m)
+```
+
+Longhurst codes/identifiers
+```{r message=FALSE, warning=FALSE}
+longhursts <- read_tsv(here::here("data", "longhurst_codes.tsv"), 
+                       col_names = c("sampleID", "lat", "lon", "LongCode", "LongWind", "LongDesc"))
+```
+
+Prochlorococcus Ecotype abundances
+```{r message=FALSE, warning=FALSE}
+ecotype <- read_tsv(here::here("data", "ecotype_read_abundance.tsv")) %>%
+  select(sampleID=sample, reads_total, pro_all, pro_HLI, pro_HLII, pro_HLIII_HLIV, pro_LLI, pro_LLII_LLIII, pro_LLIV) %>%
+  pivot_longer(pro_HLI:pro_LLIV, names_to = "ecotype", values_to = "count") %>%
+  mutate(ra=count/pro_all) %>%
+  select(-count) %>%
+  pivot_wider(names_from = "ecotype", values_from ="ra") %>%
+  mutate(pro=pro_all/reads_total) %>% select(-pro_all, -reads_total)
+```
+
+DARWIN modeled data
+```{r message=FALSE, warning=FALSE}
+darwin.joined.final <- read_tsv(here::here("data", "darwin2metagenomes.tsv")) %>%
+  dplyr::rename(synDarwin_umolC.kg=prokaryote_c01_darwin_clim,
+                proDarwin_umolC.kg=prokaryote_c02_darwin_clim,
+                nitrateDarwin_dissolved_umol.kg=NO3_darwin_clim,
+                phosphateDarwin_dissolved_umol.kg=PO4_darwin_clim,
+                DOPDarwin_dissolved_umol.kg=DOP_darwin_clim) %>%
+  mutate(ironDarwin_dissolved_nmol.kg=FeT_darwin_clim*1000,
+         synDarwin_umolC.kg = ifelse(synDarwin_umolC.kg < 0, 0, synDarwin_umolC.kg),
+         proDarwin_umolC.kg = ifelse(proDarwin_umolC.kg < 0, 0, proDarwin_umolC.kg)) %>%
+  select(-FeT_darwin_clim)
+```
+
+# FORMAT DATA
+```{r}
+tara.meta.red.a <- tara.meta.a %>%
+  select(sampleID, pangaea_id, tara_station,
+         ebi_sample_id, env_feature,
+         temp_deg_c_q50,
+         sal_q50,
+         sigma_theta_kg_m3_q50,
+         chl_a_mg_m3_q50_2)
+
+tara.meta.red.b <- tara.meta.b %>%
+  select(sampleID, pangaea_id, tara_station,
+         ebi_sample_id,
+         chlmax_depth=d_chl_m_m_calculated_from_in_situ_senso,
+         no3_µmol_l_at_the_depth_of_the_mixed_lay_1,
+         no3_µmol_l_at_the_depth_of_maximum_chlor,
+         oxygen_µmol_kg_at_the_depth_of_the_mixed_lay_1,
+         oxygen_µmol_kg_at_the_depth_of_maximum_chlor) %>%
+  group_by(tara_station) %>%
+  mutate(chlmax_depth1=mean(chlmax_depth)) %>%
+  ungroup()
+```
+
+Hmmm... now it appears there is no useable nitrate/NH4/PO4 data in the PANGEA dataset... Strange because earlier versions had nitrate and phosphate values (albeit they were often negative). Maybe the quality of this data is now suspect? The nitrate values from the Sunagawa 2015 supplement seem quite high to me... Will proceed with omitting nitrate values in Tara oceans and will try and either interpolate them or add them from the DARWIN model later on.
+
+```{r}
+tara.samp.meta <- left_join(tara.samp, tara.meta.red.a) %>%
+  group_by(tara_station) %>%
+  mutate(lat=round(mean(lat), 3), lon=round(mean(lon), 3)) %>%
+  ungroup()
+```
+
+Final joining
+
+1. chla_norm is every value divided by chla at the SCML layer
+2. dcm.layer is if `chla_norm > 0.5*chla_norm`
+3. dcm.max is if `chla_norm >= 0.9*chla_norm`
+4. hdb_cl is whether the depth of maximum fluorescence falls into the basic depth ranges determined for the SCML clusters derived from the GEOTRACES dataset
+
+```{r}
+tara.samp.meta.w8.wide.darwin <- left_join(tara.samp.meta, taraW8, by="pangaea_id") %>%
+  left_join(., select(longhursts, -lat, -lon)) %>%
+  left_join(., darwin.joined.final) %>%
+  left_join(., ecotype) %>%
+  left_join(., select(tara.meta.red.b, sampleID, chlmax_depth1)) %>%
+  mutate(temperature_dissolved_deg.c = temp_deg_c_q50,
+         salinity_dissolved_PSS.1978 = sal_q50,
+         sigmatheta_dissolved_kg.m3 = sigma_theta_kg_m3_q50,
+         chl_dissolved_mg.kg = chl_a_mg_m3_q50_2/1000/1.025,
+         oxygen_dissolved_umol.kg = mean_oxygen_umol_kg,
+         phosphate_dissolved_umol.kg = po4_umol_l/1.025,
+         silicate_dissolved_umol.kg = si_umol_l/1.025) %>%
+  group_by(tara_station, lat, lon) %>%
+  mutate(chla_norm=chl_dissolved_mg.kg/max(chl_dissolved_mg.kg), 
+         dcm.layer=ifelse(chla_norm>0.5*max(chla_norm), 1, 0),
+         dcm.max=ifelse(chla_norm>=0.9*max(chla_norm), 1, 0),
+         hdb_cl=case_when(chlmax_depth1 <= 21.4 ~ 1,
+                          chlmax_depth1 > 21.4 & chlmax_depth1 <=62.5 ~ 2,
+                          chlmax_depth1 > 62.5 & chlmax_depth1 <=84.9 ~ 3,
+                          chlmax_depth1 > 84.9 ~ 4)) %>%
+  select(sampleID, date, replicate, tara_station, environment, depth, lat, lon,
+         ocean, LongWind, LongCode, LongDesc, temperature_dissolved_deg.c,
+         salinity_dissolved_PSS.1978, sigmatheta_dissolved_kg.m3, chl_dissolved_mg.kg,
+         chla_norm, dcm.layer, dcm.max, hdb_cl, pro_HLI, pro_HLII, pro_HLIII_HLIV, pro_LLI,
+         pro_LLII_LLIII, pro_LLIV, pro, oxygen_dissolved_umol.kg, phosphate_dissolved_umol.kg,
+         silicate_dissolved_umol.kg, synDarwin_umolC.kg, proDarwin_umolC.kg,
+         nitrateDarwin_dissolved_umol.kg, phosphateDarwin_dissolved_umol.kg, 
+         DOPDarwin_dissolved_umol.kg, ironDarwin_dissolved_nmol.kg, 
+         ebi_run_id, release_version, date_acquired_from_ebi,
+         full_sample_name, pangaea_id, env_feature)
+```
+
+# OUTPUT
+```{r}
+write_tsv(tara.samp.meta.w8.wide.darwin, here::here("output", "tara_biogeochem_metadata.tsv"))
+```

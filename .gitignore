@@ -1,0 +1,11 @@
+data/darwin2metagenomes.tsv
+data/sunigawa_et_al_CompanionTables.xlsx
+data/darwin_clim/*
+data/miTAG-taxonomic-profiles/*
+data/pangea-metadata/*
+output/*
+
+**/.Rhistory
+**/.DS_Store
+**/*.html
+.Rproj.user
